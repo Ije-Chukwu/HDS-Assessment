@@ -1,0 +1,253 @@
+---
+title: "Domestic Abuse trend in Scotland and across council areas"
+author: "Ijeoma Nwachukwu"
+date: "`December 2024`"
+output:
+  html_document: default
+    
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Research Question:
+What are the trends in domestic abuse incidence in Scotland over time and how does it vary across council areas in scotland from 2003-2021
+
+# Aim 
+To explore domestic abuse trend in scotland and acoss council areas in scotland and highlight council area with highest rates of domestic abuse in comparison to others and make predictions based on.
+
+# Steps
+
+## Load Required Packages and Dataset
+
+### 1.1 Load Required packages
+The following packages were used for this project
+
+```{r load-packages, message=FALSE, warning=FALSE, include=FALSE}
+library(tidyverse)
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+```
+
+### 1.2 Read in Data
+The data file 'Domestic abuse.csv' contains information on number of domestic abuse incidents and rate per 10,000 population in scotland and across all council areas in scotland, from 2003 to 2021. It was sourced from the Scottish Government report (Scottish Crime Statistics) and made freely available for download on ScotPHO profiles (https://scotland.shinyapps.io/ScotPHO_profiles_tool/_w_f405afdd/#tab-3622-4). Higher incidence rate numbers are worse and values less than 10 are surpressed which potentially blurs trends in lower rate areas. However the dataset has no missing values.
+
+```{r read-data}
+Dom_abuse <- read.csv("Domestic abuse.csv")
+```
+
+## Prepare Data
+
+### 2.1 Inspect Data
+```{r inspect-data, echo=TRUE, warning=FALSE, paged.print=TRUE}
+glimpse(Dom_abuse)
+
+```
+
+### 2.2 Rename Columns
+```{r rename column}
+Dom_abuse <- Dom_abuse %>% rename(inc_count = numerator,
+inc_rate = measure
+)
+```
+
+### 2.3 Filter Data for Scotland
+```{r filter Domestic abuse data for scotland}
+  scotland_data <- Dom_abuse %>% filter(area_type == "Scotland")
+```
+
+### 2.4 Convert year to numeric
+```{r Setting year to numeric to enable comparison across council areas}
+Dom_abuse <- Dom_abuse %>% mutate(year=as.numeric(year))
+```
+
+
+## Visualization and analysis
+
+### 3.1 Domestic Abuse Trend in Scotland (2003-2021)
+```{r Plot of Dom_abuse inc_rate in scotland}
+
+ggplot(scotland_data,aes(x=year, y=inc_rate))+
+  geom_line(colour = "blue",linewidth =1)+
+  geom_point(colour = "darkblue", size = 2)+
+labs(title = "Domestic Abuse Incidence rate per10,000 population in Scotland (2003-2021)",
+     x= "Year",
+     y="Rate of Domestic Abuse Incidents per10,000 population") +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(hjust = 0.5,size=11),
+    axis.text = element_text (size =9),
+    axis.title = element_text (size=10)
+  )
+
+```
+
+
+### 3.2 Council Area with Highest rate in 2021
+```{r find the council area with the highest incidence rate of domestic abuse}
+
+highest_rate_area <- Dom_abuse %>%
+  filter(year == 2021) %>%
+  arrange(desc(inc_rate)) %>%
+  head(1)%>%
+  pull(area_name)
+```
+
+### 3.3 Trend for Area with Highest Rate
+```{r filter data for Dundee City}
+high_rate_area <- Dom_abuse %>%
+  filter(area_name ==highest_rate_area)
+
+```
+
+
+```{r to show trend of highest area}
+ggplot(high_rate_area, aes(x=year, y=inc_rate)) +
+  geom_line(color = "red", linewidth =1) +
+  geom_point(colour = "darkred", size = 2)+
+  labs (title = paste("Trend in Domestic Abuse Rate in", highest_rate_area, "year (2003-2021)"),
+x = "Year",
+y = "Rate per 10,000 Dundee Population"
+) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(hjust = 0.5,size=11),
+    axis.text = element_text (size =9),
+    axis.title = element_text (size=10)
+  )
+
+```
+
+### 3.4 Prevalence of Domestic Abuse by Council Areas (2021) 
+
+A bar chart here helps to illustrate incidence of Domestic abuse in scotland in 2021 across Council Areas, highlighting the area with higher prevalence in comparison to others.
+```{r first, filter year and define area experiencing the highest rate in 2021}
+
+area_comp_data <- Dom_abuse %>% filter(year == 2021)
+
+highest_rate <-max (area_comp_data$inc_rate,na.rm = TRUE) 
+
+# Adding 'highlight' column
+area_comp_data <- area_comp_data %>%
+  mutate(highlight = ifelse(inc_rate == highest_rate, "Highest", "Other"))
+
+#Checking for unique values in 'highlight'
+print(unique(area_comp_data$highlight)) # this should output "Highest" and "Other"
+
+```
+
+```{r plot comparing highlighted high rate area with other council areas in 2021}
+
+# Plot with correct mapping
+# Finalized Bar Chart with Dynamic Title and Formatting
+ggplot(area_comp_data, aes(x = reorder(area_name, -inc_rate), y = inc_rate, fill = highlight)) +
+  geom_bar(stat = "identity") +
+  scale_fill_manual(
+    values = c("Highest" = "red", "Other" = "lightblue")
+  ) +
+  labs(
+    title = paste(
+      "Domestic Abuse Rates per 10,000 Population in 2021 (Highest:", highest_rate_area, ")"
+    ),
+    x = "Council Areas",
+    y = "Rate per 10,000 Population"
+  ) +
+  scale_y_continuous(labels = scales::comma) + 
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 60, hjust = 1, size = 9),
+    plot.title = element_text(hjust = 0.5, size = 11),
+    axis.title = element_text(size = 10)
+  )
+
+```
+
+## Predictive Analysis for 2026
+
+### 4.1 Predict Rates by Council Area
+```{r}
+# Prepare data for prediction: filter relevant columns
+Dom_abuse <- Dom_abuse %>%
+  select(area_name, year, inc_rate)
+
+# creating a data frame to store predictions
+future_predictions <- data.frame()
+
+# predict rates for each council area
+for (area in unique(Dom_abuse$area_name)) {
+  # Filter data for the current area
+  area_data <- Dom_abuse %>% filter(area_name == area)
+  
+  # Fit a linear regression model
+  model <- lm(inc_rate ~ year, data = area_data)
+  
+  # Predict rate for 2026
+  future_rate <- predict(model, newdata = data.frame(year = 2026))
+  
+  # Store predictions
+  future_predictions <- future_predictions %>%
+    bind_rows(data.frame(area_name = area, predicted_rate = future_rate))
+}
+
+# Identify the council area with the highest predicted rate
+highest_predicted_area <- future_predictions %>%
+  arrange(desc(predicted_rate)) %>%
+  slice(1)
+
+# Print the area with the highest predicted rate
+print(highest_predicted_area)
+```
+
+### 4.2 Visualize predictions
+```{r Visualize predictions}
+
+ggplot(future_predictions, aes(x = reorder(area_name, -predicted_rate), y = predicted_rate, fill = (area_name == highest_predicted_area$area_name))) +
+  geom_bar(stat = "identity") +
+  scale_fill_manual(values = c("TRUE" = "darkred", "FALSE" = "lightblue"), guide = "none") +
+  labs(
+    title = "Predicted Domestic Abuse Rates per 10,000 Population in Scottish Council Areas (2026)",
+    x = "Council Areas",
+    y = "Predicted Rate per 10,000 Population"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 60, hjust = 1, size = 9),
+    plot.title = element_text(hjust = 0.5, size = 11),
+    axis.title = element_text(size = 10)
+
+
+  )
+
+```
+
+# Summary
+The trend analysis shows that Domestic abuse is on the rise in Scotland, the rate of domestic abuse varies considerably accross the concil areas, with Dundee City showing more pronounced rise in rates in 2021 and Clackmannanshire likely to experience higher rates (185.6per10,000) in 2026. This report is a useful guide for targeted interventions by policymakers.
+
+The trend visualization is effective at showcasing trend in domestic abuse for scotland and Dundee while the bar chart effectively draws attention to geographic variation in rares, emphasing with highest prevalence.
+
+While the available trends data is limited to 2021 and hence does not reflect more recent trends, the predictive model estimating rates for 2026 provides insight to support future strategic planning which addresses the limitation of the outdated data.
+
+The prediction model highlighting Clackmannaishire as likely to experience higher rates in 2026 over Dundee and other areas, is based on a linear regression which assumes consistency in trend over time and therefore which may not hold true if there is a significant change due to policy intervention. Also, area-specific factors could lead to inaccuracies in the prediction hence more work addressing confounding factors that affect differences across council areas and incidence across relevant demograhies is needed to further strengthen the analysis.
+
+# Acknowledging the Use of GenAI Tools
+
+I acknowledge the use of Chat GPT4.0 mini to fix errors in my codes and impprove them through the process of this assignment, as well as provide guidiance on data manipulation and visualization along with other available resources to thorougly analyse and summarize my ideas in a clear, succint manner in adherence to academic integrity guidelines. I entered the following prompts on 
+*29 November 2024: what does a double data type mean in r
+*29 November 2024: Error in file(file, "rt") : cannot open the connection
+*1 December 2024: How can i refine my code to make bar with highest rate stand out from the others?
+*2 December 2024: what does this warning mean and how can I fix it? "Warning: [38;5;232mNo shared levels found between names(values) of the manual scale and the data's [32mfill[38;5;232m values.[39m
+Warning: [38;5;232mThe aixis.title theme element is not defined in the element hierarchy.[39m"
+
+The output generated from these prompts was edited and refined to suit my assessment specifications, drawing on academic and web resources available on MyAberdeen vLE.
+
+# References
+
+Benjamin (2011). 6 April. Available at: <https://stackoverflow.com/questions/5568847> (Accessed: 28 November 2024).
+Crawley, Michael J. (2008). *The R Book.* Chichester: Wiley. Print.
+Dimitra B. (2024). 'R-Data-Cleaning' [Video illustration]. *PU5063: Introduction to Health Data Science.* Available at: <https://abdn.blackboard.com> (Accessed: 28 November 2024).
+Scottish Public Health Observatory (no date) (Accessed: 29 November 2024).
+Yihui Xie, Christophe Dervieux, Emily Riederer (2024). *R Markdown Cookbook.* Available at: <https://bookdown.org/yihui/rmarkdown-cookbook/> (Accessed: 3 December 2024).
+
